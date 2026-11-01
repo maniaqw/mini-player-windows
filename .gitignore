@@ -5,3 +5,21 @@ reference/
 dist/
 release/
 *.user
+
+# Build and IDE artifacts (including test projects)
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.suo
+*.userosscache
+*.sln.docstates
+*.log
+
+# Installer and release output
+installer/
+*.msi
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle

@@ -42,6 +42,9 @@ public partial class MainWindow : Window
     private readonly string settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GlassPlayer", "settings.json");
     private readonly bool demo = Environment.GetCommandLineArgs().Contains("--demo");
     private SettingsWindow? settingsWindow;
+    private LiquidBackdrop? liquidBackdrop;
+    public PlayerDesign CurrentDesign { get; private set; } = PlayerDesign.Classic;
+    public bool IsLiquidGlass => CurrentDesign == PlayerDesign.LiquidGlass;
     private readonly DiscordPresenceService discord = new();
     public bool DiscordEnabled { get; private set; } = true;
     public string DiscordApplicationId { get; private set; } = DiscordPresenceService.DefaultApplicationId;
@@ -66,6 +69,7 @@ public partial class MainWindow : Window
             {
                 Left = saved.Left; Top = saved.Top; lyricOffsetSeconds = saved.LyricOffset;
                 CurrentTheme = PlayerTheme.Find(saved.Theme);
+                CurrentDesign = PlayerDesigns.Parse(saved.Design);
                 PlayerScale = double.IsFinite(saved.Scale) ? Math.Clamp(saved.Scale, 0.6, 1.5) : 1;
                 Localization.SetLanguage(saved.Language);
                 DiscordEnabled = saved.DiscordEnabled;
@@ -81,12 +85,18 @@ public partial class MainWindow : Window
             if (!closing && !Dispatcher.HasShutdownStarted) Dispatcher.BeginInvoke(() => settingsWindow?.RefreshDiscordStatus());
         };
         if (!demo) discord.Configure(DiscordEnabled, DiscordApplicationId);
+        if (Environment.GetCommandLineArgs().Contains("--liquid-glass")) CurrentDesign = PlayerDesign.LiquidGlass;
         Width *= PlayerScale;
         targetWidth = Width;
         Height = 144 * PlayerScale;
         ApplyTheme();
         ClampPosition();
         SizeChanged += (_, _) => UpdateCanvas();
+        SourceInitialized += (_, _) => { liquidBackdrop = new LiquidBackdrop(this); Dispatcher.BeginInvoke(() => liquidBackdrop.Update()); };
+        LocationChanged += (_, _) => liquidBackdrop?.Update();
+        IsVisibleChanged += (_, _) => liquidBackdrop?.Update();
+        StateChanged += (_, _) => liquidBackdrop?.Update();
+        Activated += (_, _) => liquidBackdrop?.Update(true);
         UpdateCanvas();
         timer.Tick += async (_, _) => await Refresh();
         CompositionTarget.Rendering += RenderFrame;
@@ -119,6 +129,8 @@ public partial class MainWindow : Window
         Closing += (_, _) =>
         {
             closing = true;
+            liquidBackdrop?.Dispose();
+            liquidBackdrop = null;
             timer.Stop();
             CompositionTarget.Rendering -= RenderFrame;
             lyricsCancellation?.Cancel();
@@ -288,7 +300,12 @@ public partial class MainWindow : Window
         GlassShader.Time = now;
         discVelocity = HudMotion.Follow(discVelocity, playing ? 55 : 0, elapsed, playing ? 2.2 : 3.5);
         if (!playing && discVelocity < 0.01) discVelocity = 0;
-        DiscRotation.Angle = (DiscRotation.Angle + elapsed * discVelocity) % 360;
+        DiscRotation.Angle = IsLiquidGlass ? 0 : (DiscRotation.Angle + elapsed * discVelocity) % 360;
+        if (IsLiquidGlass)
+        {
+            var pointer = IsMouseOver ? Mouse.GetPosition(PlayerCanvas) : new Point(PlayerCanvas.Width * 0.72, PlayerCanvas.Height * 0.12);
+            GlassShader.Pointer = new Point(HudMotion.Follow(GlassShader.Pointer.X, Math.Clamp(pointer.X / PlayerCanvas.Width, 0, 1), elapsed, 10), HudMotion.Follow(GlassShader.Pointer.Y, Math.Clamp(pointer.Y / PlayerCanvas.Height, 0, 1), elapsed, 10));
+        }
         AdvanceCover(now);
         TrackTitle.Advance();
         Artist.Advance();
@@ -370,7 +387,7 @@ public partial class MainWindow : Window
         coverChangedAt = clock.Elapsed.TotalSeconds;
         OldCoverLayer.Opacity = PreviousCover.Source is null ? 0 : 1;
         NewCoverLayer.Opacity = 0;
-        VinylDetails.Visibility = artwork is null ? Visibility.Collapsed : Visibility.Visible;
+        VinylDetails.Visibility = artwork is null || IsLiquidGlass ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void AdvanceCover(double now)
@@ -574,26 +591,39 @@ public partial class MainWindow : Window
         PlayerCanvas.Width = Math.Max(1, ActualWidth / PlayerScale);
         PlayerCanvas.Height = Math.Max(144, ActualHeight / PlayerScale);
         GlassShader.Size = new Point(PlayerCanvas.Width, PlayerCanvas.Height);
+        liquidBackdrop?.Update();
     }
 
     private void ApplyTheme()
     {
+        GlassShader.Liquid = IsLiquidGlass ? 1 : 0;
+        LiquidPlaySurface.Visibility = IsLiquidGlass ? Visibility.Visible : Visibility.Collapsed;
+        Disc.Clip = IsLiquidGlass ? new RectangleGeometry(new Rect(0, 0, 76, 76), 19, 19) : new EllipseGeometry(new Point(38, 38), 38, 38);
+        VinylDetails.Visibility = !IsLiquidGlass && Cover.Source is not null ? Visibility.Visible : Visibility.Collapsed;
         GlassShader.Tint = CurrentTheme.BackgroundColor;
         GlassShader.Light = CurrentTheme.LightColor;
         TrackTitle.Foreground = CurrentTheme.Text;
-        Artist.Foreground = CurrentTheme.Secondary;
+        Artist.Foreground = IsLiquidGlass ? CurrentTheme.Text : CurrentTheme.Secondary;
         ProgressRing.Stroke = Dot1.Fill = Dot2.Fill = Dot3.Fill = CurrentTheme.Accent;
         PauseBar1.Background = PauseBar2.Background = PlayIcon.Fill = CurrentTheme.Secondary;
         var trackColor = CurrentTheme.LightColor; trackColor.A = 40;
         RingTrack.Stroke = new SolidColorBrush(trackColor);
         Resources["PlayerAccent"] = CurrentTheme.Accent;
         Resources["PlayerText"] = CurrentTheme.Text;
-        Resources["PlayerSecondary"] = CurrentTheme.Secondary;
+        Resources["PlayerSecondary"] = IsLiquidGlass ? CurrentTheme.Text : CurrentTheme.Secondary;
         Resources["PlayerTrack"] = RingTrack.Stroke;
         var hoverColor = CurrentTheme.Accent.Color; hoverColor.A = 30;
         Resources["PlayerHover"] = new SolidColorBrush(hoverColor);
         var discColor = CurrentTheme.Name == "Porcelain" ? System.Windows.Media.Color.FromArgb(85, 192, 201, 217) : System.Windows.Media.Color.FromArgb(80, 0, 0, 0);
-        DiscBackdrop.Background = new SolidColorBrush(discColor);
+        DiscBackdrop.Background = IsLiquidGlass ? System.Windows.Media.Brushes.Transparent : new SolidColorBrush(discColor);
+        liquidBackdrop?.Update(true);
+    }
+
+    public void SetDesign(PlayerDesign design)
+    {
+        CurrentDesign = design == PlayerDesign.LiquidGlass ? design : PlayerDesign.Classic;
+        ApplyTheme();
+        SaveSettings();
     }
 
     public void SetAppearance(string themeName, double scale)
@@ -648,9 +678,9 @@ public partial class MainWindow : Window
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
-            File.WriteAllText(settingsPath, JsonSerializer.Serialize(new Position(Left, Top, lyricOffsetSeconds, CurrentTheme.Name, PlayerScale, Localization.Language, DiscordEnabled, DiscordApplicationId)));
+            File.WriteAllText(settingsPath, JsonSerializer.Serialize(new Position(Left, Top, lyricOffsetSeconds, CurrentTheme.Name, PlayerScale, Localization.Language, DiscordEnabled, DiscordApplicationId, CurrentDesign.ToString())));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Debug.WriteLine(ex); }
     }
-    private sealed record Position(double Left, double Top, double LyricOffset = 0, string Theme = "Lagoon", double Scale = 1, string Language = "ru", bool DiscordEnabled = true, string DiscordApplicationId = DiscordPresenceService.DefaultApplicationId);
+    private sealed record Position(double Left, double Top, double LyricOffset = 0, string Theme = "Lagoon", double Scale = 1, string Language = "ru", bool DiscordEnabled = true, string DiscordApplicationId = DiscordPresenceService.DefaultApplicationId, string Design = "Classic");
 }

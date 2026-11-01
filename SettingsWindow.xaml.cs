@@ -24,6 +24,8 @@ public partial class SettingsWindow : Window
         ScaleLabel.Text = $"{ScaleSlider.Value:0}%";
         DiscordEnabledToggle.IsChecked = player.DiscordEnabled;
         DiscordIdInput.Text = player.DiscordApplicationId;
+        ClassicDesign.IsChecked = !player.IsLiquidGlass;
+        LiquidDesign.IsChecked = player.IsLiquidGlass;
         ApplyTheme();
         RefreshDiscordStatus();
         Loaded += (_, _) => { SelectCard(player.CurrentTheme.Name); ready = true; };
@@ -32,6 +34,10 @@ public partial class SettingsWindow : Window
     {
         if (!ready || ((RadioButton)sender).Tag is not PlayerTheme theme) return;
         player.SetAppearance(theme.Name, ScaleSlider.Value / 100);
+    }
+    private void DesignSelected(object sender, RoutedEventArgs e)
+    {
+        if (ready) player.SetDesign(PlayerDesigns.Parse((string)((RadioButton)sender).Tag));
     }
     private void ScaleChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
@@ -60,8 +66,10 @@ public partial class SettingsWindow : Window
         ready = false;
         ScaleSlider.Value = 100;
         SelectCard("Lagoon");
+        ClassicDesign.IsChecked = true;
         ready = true;
         player.SetAppearance("Lagoon", 1);
+        player.SetDesign(PlayerDesign.Classic);
     }
     public void RefreshDiscordStatus()
     {

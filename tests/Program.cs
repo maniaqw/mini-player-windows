@@ -78,7 +78,7 @@ internal static class Program
         double spin = 0;
         for (int i = 0; i < 120; i++) spin = HudMotion.Follow(spin, 55, 1.0 / 60, 2.2);
         Check(spin > 54 && spin < 55 && HudMotion.Follow(spin, 0, 1.0 / 60, 3.5) < spin, "vinyl speed accelerates toward 55 degrees and coasts down on pause");
-        window.Close();
+        DesignChecks.Run(window);
         app.Shutdown();
         Console.WriteLine("All 27 checks passed.");
         TimelineChecks.Run();

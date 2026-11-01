@@ -25,6 +25,10 @@ public static class Localization
     }
     private static readonly Dictionary<string, string> XamlKeys = new()
     {
+        ["UiPlayerDesign"] = "Д И З А Й Н  П Л Е Е Р А",
+        ["UiOriginalDesign"] = "Оригинальный",
+        ["UiOriginalDescription"] = "Бегущий свет и вращающийся винил",
+        ["UiLiquidDescription"] = "Прозрачное стекло и мягкие блики",
         ["UiWaiting"] = "Ожидание медиасессии Windows", ["UiPlayMusic"] = "Включите музыку",
         ["UiSources"] = "Источники и настройки", ["UiPlayPause"] = "Воспроизведение / пауза",
         ["UiSettingsTitle"] = "Настройки Glass Player", ["UiAppearance"] = "Внешний вид",

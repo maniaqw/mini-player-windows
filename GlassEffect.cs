@@ -18,6 +18,10 @@ public sealed class GlassEffect : ShaderEffect
     public Point Size { get => (Point)GetValue(SizeProperty); set => SetValue(SizeProperty, value); }
     public Color Tint { get => (Color)GetValue(TintProperty); set => SetValue(TintProperty, value); }
     public Color Light { get => (Color)GetValue(LightProperty); set => SetValue(LightProperty, value); }
+    public static readonly DependencyProperty LiquidProperty = DependencyProperty.Register(nameof(Liquid), typeof(double), typeof(GlassEffect), new UIPropertyMetadata(0.0, PixelShaderConstantCallback(4)));
+    public static readonly DependencyProperty PointerProperty = DependencyProperty.Register(nameof(Pointer), typeof(Point), typeof(GlassEffect), new UIPropertyMetadata(new Point(0.75, 0.15), PixelShaderConstantCallback(5)));
+    public double Liquid { get => (double)GetValue(LiquidProperty); set => SetValue(LiquidProperty, value); }
+    public Point Pointer { get => (Point)GetValue(PointerProperty); set => SetValue(PointerProperty, value); }
     public GlassEffect()
     {
         PixelShader = Shader;
@@ -25,5 +29,7 @@ public sealed class GlassEffect : ShaderEffect
         UpdateShaderValue(SizeProperty);
         UpdateShaderValue(TintProperty);
         UpdateShaderValue(LightProperty);
+        UpdateShaderValue(LiquidProperty);
+        UpdateShaderValue(PointerProperty);
     }
 }

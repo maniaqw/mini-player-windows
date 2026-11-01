@@ -34,6 +34,7 @@
    </Button>
    <Button x:Name="Play" Grid.Column="3" Width="57" Height="57" HorizontalAlignment="Left" ToolTip="{DynamicResource UiPlayPause}" AutomationProperties.Name="{DynamicResource UiPlayPause}" Click="PlayClick">
     <Grid Width="57" Height="57">
+     <Border x:Name="LiquidPlaySurface" Margin="1" CornerRadius="28" Visibility="Collapsed" BorderThickness="1.2" BorderBrush="#66FFFFFF"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0.7,1"><GradientStop Color="#33FFFFFF" Offset="0"/><GradientStop Color="#08FFFFFF" Offset="0.6"/><GradientStop Color="#1AFFFFFF" Offset="1"/></LinearGradientBrush></Border.Background></Border>
      <Ellipse x:Name="RingTrack" Margin="3" Stroke="#24474B" StrokeThickness="4"/>
      <Path x:Name="ProgressRing" Stroke="#D37F6B" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" IsHitTestVisible="False"/>
      <Grid x:Name="PauseIcon" Width="17" Height="23"><Border x:Name="PauseBar1" Width="5" CornerRadius="1" Background="#B5CFCA" HorizontalAlignment="Left"/><Border x:Name="PauseBar2" Width="5" CornerRadius="1" Background="#B5CFCA" HorizontalAlignment="Right"/></Grid>
