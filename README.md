@@ -28,4 +28,4 @@ dotnet run --project tests/GlassPlayer.Checks.csproj
 - `Shaders/`: shader source and the shader bytecode embedded by WPF
 - `tests/`: application checks
 
-Installer scripts, packaged releases, local tools, and build output are excluded from this source tree. `Shaders/Glass.ps` is required by the application and is kept alongside its HLSL source.
+This repository contains the application source only; it does not include installer scripts or prebuilt releases. `Shaders/Glass.ps` is required by the application and is kept alongside its HLSL source.
