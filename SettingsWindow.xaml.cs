@@ -10,6 +10,7 @@ public partial class SettingsWindow : Window
 {
     private readonly MainWindow player;
     private bool ready;
+    private bool discordIdInvalid;
     public SettingsWindow(MainWindow player)
     {
         this.player = player;
@@ -21,7 +22,10 @@ public partial class SettingsWindow : Window
         ThemeList.ItemsSource = PlayerTheme.All;
         ScaleSlider.Value = player.PlayerScale * 100;
         ScaleLabel.Text = $"{ScaleSlider.Value:0}%";
+        DiscordEnabledToggle.IsChecked = player.DiscordEnabled;
+        DiscordIdInput.Text = player.DiscordApplicationId;
         ApplyTheme();
+        RefreshDiscordStatus();
         Loaded += (_, _) => { SelectCard(player.CurrentTheme.Name); ready = true; };
     }
     private void ThemeSelected(object sender, RoutedEventArgs e)
@@ -39,6 +43,7 @@ public partial class SettingsWindow : Window
     {
         player.SetLanguage((string)((Button)sender).Tag);
         UpdateLanguageButtons();
+        RefreshDiscordStatus();
     }
     private void UpdateLanguageButtons()
     {
@@ -58,6 +63,35 @@ public partial class SettingsWindow : Window
         ready = true;
         player.SetAppearance("Lagoon", 1);
     }
+    public void RefreshDiscordStatus()
+    {
+        DiscordStatusLabel.Text = Localization.T(discordIdInvalid ? "Application ID должен содержать 16–20 цифр" : player.DiscordStatus);
+        DiscordStatusLabel.ToolTip = player.DiscordDiagnostic;
+        var track = player.CurrentDiscordTrack;
+        DiscordPreview.Text = track is null ? "" : $"{track.Source} · {track.Title}\n{track.Artist}";
+    }
+    private void DiscordToggleChanged(object sender, RoutedEventArgs e)
+    {
+        if (!ready) return;
+        player.SetDiscord(DiscordEnabledToggle.IsChecked == true, player.DiscordApplicationId);
+        RefreshDiscordStatus();
+    }
+    private void DiscordApplyClick(object sender, RoutedEventArgs e) => ApplyDiscordId();
+    private void DiscordIdKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter) { ApplyDiscordId(); e.Handled = true; } }
+    private void DiscordIdEdited(object sender, TextChangedEventArgs e) { if (ready) { discordIdInvalid = false; RefreshDiscordStatus(); } }
+    private void ApplyDiscordId()
+    {
+        if (!player.SetDiscord(DiscordEnabledToggle.IsChecked == true, DiscordIdInput.Text))
+        {
+            discordIdInvalid = true;
+            RefreshDiscordStatus();
+            return;
+        }
+        discordIdInvalid = false;
+        DiscordIdInput.Text = player.DiscordApplicationId;
+        RefreshDiscordStatus();
+    }
+    private void OpenDiscordPortal(object sender, RoutedEventArgs e) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://discord.com/developers/applications") { UseShellExecute = true });
     private void SelectCard(string name)
     {
         void Visit(DependencyObject element)

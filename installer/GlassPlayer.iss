@@ -1,5 +1,5 @@
-#define AppName "Glass Player"
-#define AppVersion "2.2.0"
+﻿#define AppName "Glass Player"
+#define AppVersion "2.4.3"
 
 [Setup]
 AppId={{16ACDA35-A3D4-4C22-BC6D-6F6800745180}
@@ -14,7 +14,7 @@ ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 MinVersion=10.0.19041
 OutputDir=..\release
-OutputBaseFilename=GlassPlayer-Setup-2.2.0
+OutputBaseFilename=GlassPlayer-Setup-2.4.3
 SetupIconFile=..\Assets\GlassPlayer.ico
 UninstallDisplayIcon={app}\GlassPlayer.exe
 WizardSmallImageFile=..\Assets\installer-logo.bmp
@@ -24,7 +24,7 @@ SolidCompression=yes
 CloseApplications=yes
 RestartApplications=no
 AppMutex=Local\GlassPlayer.Desktop
-VersionInfoVersion=2.2.0.0
+VersionInfoVersion=2.4.3.0
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

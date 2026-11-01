@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
@@ -29,6 +29,8 @@ public partial class MainWindow : Window
     private double duration, positionBase, positionClock, rate = 1, lastFrame, lyricOffsetSeconds;
     private double discVelocity, coverChangedAt = -1, targetWidth;
     private double expansion, timelineStartSeconds;
+    private bool hasTimelinePosition;
+    private readonly MediaTimeline mediaTimeline = new();
     private bool expandUp, seekDragging;
     private string seekTrackKey = "";
     private readonly Stopwatch clock = Stopwatch.StartNew();
@@ -40,6 +42,12 @@ public partial class MainWindow : Window
     private readonly string settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GlassPlayer", "settings.json");
     private readonly bool demo = Environment.GetCommandLineArgs().Contains("--demo");
     private SettingsWindow? settingsWindow;
+    private readonly DiscordPresenceService discord = new();
+    public bool DiscordEnabled { get; private set; } = true;
+    public string DiscordApplicationId { get; private set; } = DiscordPresenceService.DefaultApplicationId;
+    public string DiscordStatus => discord.Status;
+    public string DiscordDiagnostic => discord.Diagnostic;
+    public PresenceTrack? CurrentDiscordTrack { get; private set; }
     public PlayerTheme CurrentTheme { get; private set; } = PlayerTheme.Find("Lagoon");
     public double PlayerScale { get; private set; } = 1;
 
@@ -60,12 +68,19 @@ public partial class MainWindow : Window
                 CurrentTheme = PlayerTheme.Find(saved.Theme);
                 PlayerScale = double.IsFinite(saved.Scale) ? Math.Clamp(saved.Scale, 0.6, 1.5) : 1;
                 Localization.SetLanguage(saved.Language);
+                DiscordEnabled = saved.DiscordEnabled;
+                DiscordApplicationId = saved.DiscordApplicationId ?? "";
             }
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { }
         var requestedLanguage = Environment.GetCommandLineArgs().FirstOrDefault(a => a.StartsWith("--language="))?.Split('=')[1];
         Localization.SetLanguage(requestedLanguage ?? Localization.Language);
         fallbackArtist = Localization.T("Ожидание медиасессии Windows");
+        discord.StatusChanged += (_, _) =>
+        {
+            if (!closing && !Dispatcher.HasShutdownStarted) Dispatcher.BeginInvoke(() => settingsWindow?.RefreshDiscordStatus());
+        };
+        if (!demo) discord.Configure(DiscordEnabled, DiscordApplicationId);
         Width *= PlayerScale;
         targetWidth = Width;
         Height = 144 * PlayerScale;
@@ -111,6 +126,8 @@ public partial class MainWindow : Window
             tray.Dispose();
             trayIcon?.Dispose();
             lyricsService.Dispose();
+            try { discord.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2)); }
+            catch (AggregateException ex) { Debug.WriteLine(ex); }
             SaveSettings();
         };
         if (requestedLanguage is not null) SaveSettings();
@@ -145,8 +162,13 @@ public partial class MainWindow : Window
             session = selected;
             if (selected is null)
             {
+                CurrentDiscordTrack = null;
+                if (!demo) discord.Update(null);
+                settingsWindow?.RefreshDiscordStatus();
                 playing = false;
                 duration = positionBase = 0;
+                hasTimelinePosition = false;
+                mediaTimeline.Reset();
                 Play.IsEnabled = previousEnabled = nextEnabled = false;
                 SeekSlider.IsEnabled = PreviousButton.IsEnabled = NextButton.IsEnabled = ShuffleButton.IsEnabled = RepeatButton.IsEnabled = ExpandedPlayButton.IsEnabled = false;
                 if (trackKey != "" || TrackTitle.Text != Localization.T("Включите музыку"))
@@ -175,17 +197,22 @@ public partial class MainWindow : Window
             RepeatButton.Foreground = info.AutoRepeatMode is not null and not MediaPlaybackAutoRepeatMode.None ? CurrentTheme.Accent : CurrentTheme.Secondary;
             RepeatButton.Content = info.AutoRepeatMode == MediaPlaybackAutoRepeatMode.Track ? "↻₁" : "↻";
             playing = info.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
-            rate = info.PlaybackRate ?? 1;
-            var timeline = selected.GetTimelineProperties();
-            duration = Math.Max(0, (timeline.EndTime - timeline.StartTime).TotalSeconds);
-            timelineStartSeconds = timeline.StartTime.TotalSeconds;
-            positionBase = (timeline.Position - timeline.StartTime).TotalSeconds;
-            if (playing)
-                positionBase += Math.Max(0, (DateTimeOffset.Now - timeline.LastUpdatedTime).TotalSeconds) * rate;
-            positionClock = clock.Elapsed.TotalSeconds;
+            rate = MediaTimeline.PlaybackRate(info.PlaybackRate);
             var properties = await selected.TryGetMediaPropertiesAsync();
             if (closing) return;
             var key = string.Join('\n', selected.SourceAppUserModelId, properties.Title, properties.Artist, properties.AlbumTitle);
+            var timeline = selected.GetTimelineProperties();
+            positionClock = clock.Elapsed.TotalSeconds;
+            mediaTimeline.Update(key, timeline.StartTime, timeline.EndTime, timeline.Position, timeline.MaxSeekTime,
+                timeline.LastUpdatedTime, playing, rate, DateTimeOffset.UtcNow, positionClock);
+            duration = mediaTimeline.Duration;
+            timelineStartSeconds = mediaTimeline.Start;
+            hasTimelinePosition = mediaTimeline.HasPosition;
+            positionBase = mediaTimeline.PositionAt(positionClock);
+            SeekSlider.IsEnabled = info.Controls.IsPlaybackPositionEnabled && hasTimelinePosition && duration > 0;
+            CurrentDiscordTrack = new PresenceTrack(properties.Title, properties.Artist, SourceName(selected.SourceAppUserModelId), CurrentPosition, duration, playing, DateTimeOffset.UtcNow, properties.AlbumTitle, HasTimelinePosition: hasTimelinePosition);
+            if (!demo) discord.Update(CurrentDiscordTrack);
+            settingsWindow?.RefreshDiscordStatus();
             if (trackKey != key)
             {
                 trackKey = key;
@@ -232,7 +259,7 @@ public partial class MainWindow : Window
             }
             ToolTip = $"{properties.Title}\n{properties.Artist}\n{SourceName(selected.SourceAppUserModelId)}\n{Localization.T(lyricsStatus)}\n{Localization.T("Перетащите панель, чтобы переместить")}";
         }
-        catch (Exception ex) { ToolTip = Localization.T("Медиасессия обновляется: ") + ex.Message; }
+        catch (Exception ex) { discord.Update(null); ToolTip = Localization.T("Медиасессия обновляется: ") + ex.Message; }
         finally { updating = false; }
     }
 
@@ -249,7 +276,7 @@ public partial class MainWindow : Window
         catch (Exception ex) { if (!closing && key == trackKey) lyricsStatus = "Текст недоступен"; Debug.WriteLine(ex); }
     }
 
-    private double CurrentPosition => Math.Clamp(positionBase + (playing ? (clock.Elapsed.TotalSeconds - positionClock) * rate : 0), 0, duration > 0 ? duration : double.MaxValue);
+    private double CurrentPosition => hasTimelinePosition ? MediaTimeline.ClampPosition(positionBase + (playing ? (clock.Elapsed.TotalSeconds - positionClock) * rate : 0), duration) : 0;
 
     private void RenderFrame(object? sender, EventArgs e)
     {
@@ -272,7 +299,7 @@ public partial class MainWindow : Window
         ExpandedPlayButton.Content = playing ? "Ⅱ" : "▶";
         double position = seekDragging ? SeekSlider.Value * duration : CurrentPosition;
         if (!seekDragging) SeekSlider.Value = duration > 0 ? position / duration : 0;
-        ElapsedTime.Text = FormatTime(position);
+        ElapsedTime.Text = hasTimelinePosition ? FormatTime(position) : "--:--";
         RemainingTime.Text = "−" + FormatTime(Math.Max(0, duration - position));
         DrawRing(duration > 0 ? position / duration : 0);
         Dot1.Opacity = playing ? 0.5 + 0.35 * Math.Sin(now * 2.8) : 0.5;
@@ -372,7 +399,7 @@ public partial class MainWindow : Window
         ExpandedControls.IsHitTestVisible = expansion > 0.8;
     }
 
-    private static string FormatTime(double seconds) => $"{(int)Math.Max(0, seconds) / 60}:{(int)Math.Max(0, seconds) % 60:00}";
+    private static string FormatTime(double seconds) => MediaTimeline.Format(seconds);
     private void SeekStart(object sender, MouseButtonEventArgs e)
     {
         if (!SeekSlider.IsEnabled || duration <= 0) return;
@@ -402,6 +429,7 @@ public partial class MainWindow : Window
         if (seekTrackKey != trackKey || duration <= 0) return;
         double position = SeekSlider.Value * duration;
         if (demo) { positionBase = position; positionClock = clock.Elapsed.TotalSeconds; return; }
+        mediaTimeline.Seek(position, clock.Elapsed.TotalSeconds);
         await Control(async s => await s.TryChangePlaybackPositionAsync(TimeSpan.FromSeconds(timelineStartSeconds + position).Ticks));
     }
     private async void PreviousClick(object sender, RoutedEventArgs e) => await Control(async s => await s.TrySkipPreviousAsync());
@@ -409,7 +437,7 @@ public partial class MainWindow : Window
     private async void ShuffleClick(object sender, RoutedEventArgs e) => await Control(async s => await s.TryChangeShuffleActiveAsync(s.GetPlaybackInfo().IsShuffleActive != true));
     private async void RepeatClick(object sender, RoutedEventArgs e) => await Control(async s => await s.TryChangeAutoRepeatModeAsync(s.GetPlaybackInfo().AutoRepeatMode switch { MediaPlaybackAutoRepeatMode.None => MediaPlaybackAutoRepeatMode.List, MediaPlaybackAutoRepeatMode.List => MediaPlaybackAutoRepeatMode.Track, _ => MediaPlaybackAutoRepeatMode.None }));
 
-    private static string SourceName(string id) => id.Contains("spotify", StringComparison.OrdinalIgnoreCase) ? "Spotify" : id.Contains("apple", StringComparison.OrdinalIgnoreCase) ? "Apple Music" : id.Contains("chrome", StringComparison.OrdinalIgnoreCase) ? "Google Chrome" : id.Contains("msedge", StringComparison.OrdinalIgnoreCase) ? "Microsoft Edge" : id.Split('!')[0];
+    private static string SourceName(string id) => MediaSource.DisplayName(id);
 
     private async Task Control(Func<MediaSession, Task<bool>> action)
     {
@@ -529,7 +557,7 @@ public partial class MainWindow : Window
         fallbackArtist = Localization.T("Проверка анимации");
         lyrics = [new(0, Localization.T("Короткая строка")), new(3, Localization.T("Плавно появляется следующая строка")), new(6, Localization.T("И снова короче")), new(9, Localization.T("Свет движется по закруглённому контуру"))];
         lyricsStatus = "Демонстрация анимации";
-        duration = 15; playing = true; positionBase = 0; positionClock = clock.Elapsed.TotalSeconds;
+        duration = 15; hasTimelinePosition = true; playing = true; positionBase = 0; positionClock = clock.Elapsed.TotalSeconds;
         SeekSlider.IsEnabled = true;
         PreviousButton.IsEnabled = NextButton.IsEnabled = ShuffleButton.IsEnabled = RepeatButton.IsEnabled = false;
         var drawing = new DrawingGroup();
@@ -603,15 +631,26 @@ public partial class MainWindow : Window
         SaveSettings();
     }
 
+    public bool SetDiscord(bool enabled, string applicationId)
+    {
+        applicationId = applicationId.Trim();
+        if (applicationId.Length > 0 && !DiscordPresenceService.IsValidApplicationId(applicationId)) return false;
+        DiscordEnabled = enabled;
+        DiscordApplicationId = applicationId;
+        if (!demo) discord.Configure(enabled, applicationId);
+        SaveSettings();
+        return true;
+    }
+
     private void SaveSettings()
     {
         if (demo) return;
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
-            File.WriteAllText(settingsPath, JsonSerializer.Serialize(new Position(Left, Top, lyricOffsetSeconds, CurrentTheme.Name, PlayerScale, Localization.Language)));
+            File.WriteAllText(settingsPath, JsonSerializer.Serialize(new Position(Left, Top, lyricOffsetSeconds, CurrentTheme.Name, PlayerScale, Localization.Language, DiscordEnabled, DiscordApplicationId)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Debug.WriteLine(ex); }
     }
-    private sealed record Position(double Left, double Top, double LyricOffset = 0, string Theme = "Lagoon", double Scale = 1, string Language = "ru");
+    private sealed record Position(double Left, double Top, double LyricOffset = 0, string Theme = "Lagoon", double Scale = 1, string Language = "ru", bool DiscordEnabled = true, string DiscordApplicationId = DiscordPresenceService.DefaultApplicationId);
 }

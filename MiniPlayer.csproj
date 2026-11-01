@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
@@ -9,7 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>GlassPlayer</AssemblyName>
     <ApplicationIcon>Assets/GlassPlayer.ico</ApplicationIcon>
-    <Version>2.2.0</Version>
+    <Version>2.4.3</Version>
     <Product>Glass Player</Product>
     <Description>Floating music player with synced lyrics</Description>
   </PropertyGroup>

@@ -53,5 +53,19 @@
  "Язык интерфейса": "Interface language",
  "Перемотка": "Seek",
  "Случайный порядок": "Shuffle",
- "Повтор": "Repeat"
+ "Повтор": "Repeat",
+ "Показывать трек, исполнителя и музыкальное приложение в профиле Discord.": "Show your track, artist and music app on your Discord profile.",
+ "Применить": "Apply",
+ "Discord Rich Presence выключен": "Discord Rich Presence is off",
+ "Укажите Discord Application ID": "Enter a Discord Application ID",
+ "Подключение к Discord…": "Connecting to Discord…",
+ "Ожидание запуска Discord": "Waiting for Discord to start",
+ "Discord подключён": "Connected to Discord",
+ "Discord подключён · ожидание музыки": "Discord connected · waiting for music",
+ "Музыка отображается в Discord": "Your music is displayed on Discord",
+ "Обновление статуса Discord…": "Updating Discord presence…",
+ "Музыка на паузе · статус скрыт": "Music paused · presence cleared",
+ "Соединение с Discord потеряно": "Discord disconnected · reconnecting",
+ "Discord отклонил подключение или статус": "Discord rejected the connection or presence",
+ "Application ID должен содержать 16–20 цифр": "Application ID must contain 16–20 digits"
 }

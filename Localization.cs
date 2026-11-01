@@ -33,5 +33,7 @@ public static class Localization
         ["UiReset"] = "Сбросить", ["UiLanguage"] = "Язык интерфейса",
         ["UiSeek"] = "Перемотка", ["UiShuffle"] = "Случайный порядок", ["UiRepeat"] = "Повтор",
         ["UiPrevious"] = "Предыдущий трек", ["UiNext"] = "Следующий трек",
+        ["UiDiscordDescription"] = "Показывать трек, исполнителя и музыкальное приложение в профиле Discord.",
+        ["UiApply"] = "Применить",
     };
 }

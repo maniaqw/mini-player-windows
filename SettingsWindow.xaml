@@ -2,6 +2,7 @@
  Title="{DynamicResource UiSettingsTitle}" Width="540" Height="910" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True" WindowStartupLocation="Manual" FontFamily="Segoe UI" Foreground="{DynamicResource SettingsText}" KeyDown="WindowKeyDown">
  <Window.Resources>
   <SolidColorBrush x:Key="AccentBrush" Color="#31CFC4"/>
+  <Style x:Key="DiscordToggle" TargetType="CheckBox"><Setter Property="Cursor" Value="Hand"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CheckBox"><Border x:Name="Track" Width="36" Height="21" CornerRadius="10.5" Background="{DynamicResource SettingsTrack}"><Ellipse x:Name="Knob" Width="15" Height="15" Fill="{DynamicResource SettingsSecondary}" HorizontalAlignment="Left" Margin="3"/></Border><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentBrush}"/><Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right"/><Setter TargetName="Knob" Property="Fill" Value="{DynamicResource SettingsBackground}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource SettingsText}"/><Setter TargetName="Track" Property="BorderThickness" Value="1"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
   <Style TargetType="ScrollBar"><Setter Property="Width" Value="7"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Track x:Name="PART_Track" IsDirectionReversed="True"><Track.DecreaseRepeatButton><RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False"/></Track.DecreaseRepeatButton><Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType="Thumb"><Border CornerRadius="3" Background="{DynamicResource SettingsMuted}" Margin="1,2"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb><Track.IncreaseRepeatButton><RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False"/></Track.IncreaseRepeatButton></Track></ControlTemplate></Setter.Value></Setter></Style>
   <Style x:Key="SmallButton" TargetType="Button">
    <Setter Property="Foreground" Value="{DynamicResource SettingsSecondary}"/><Setter Property="Cursor" Value="Hand"/><Setter Property="Background" Value="{DynamicResource SettingsSurface}"/><Setter Property="BorderBrush" Value="{DynamicResource SettingsBorder}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="12,7"/>
@@ -53,6 +54,20 @@
         <Button Grid.Column="2" Style="{StaticResource SmallButton}" Content="125%" Tag="125" Margin="0,0,7,0" Click="ScalePreset"/>
         <Button Grid.Column="3" Style="{StaticResource SmallButton}" Content="150%" Tag="150" Click="ScalePreset"/>
        </Grid>
+      </StackPanel>
+     </Border>
+     <Border CornerRadius="14" Background="{DynamicResource SettingsSurface}" BorderBrush="{DynamicResource SettingsBorder}" BorderThickness="1" Margin="5,0,5,21" Padding="15,13">
+      <StackPanel>
+       <Grid><TextBlock Text="Discord Rich Presence" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/><CheckBox x:Name="DiscordEnabledToggle" Style="{StaticResource DiscordToggle}" HorizontalAlignment="Right" Checked="DiscordToggleChanged" Unchecked="DiscordToggleChanged" AutomationProperties.Name="Discord Rich Presence"/></Grid>
+       <TextBlock Text="{DynamicResource UiDiscordDescription}" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource SettingsSecondary}" Margin="0,7,0,12"/>
+       <TextBlock Text="Application ID" FontSize="10" Foreground="{DynamicResource SettingsMuted}" Margin="0,0,0,5"/>
+       <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBox x:Name="DiscordIdInput" AutomationProperties.Name="Discord Application ID" MaxLength="20" FontSize="12" Padding="9,7" Foreground="{DynamicResource SettingsText}" Background="{DynamicResource SettingsBackground}" BorderBrush="{DynamicResource SettingsBorder}" CaretBrush="{DynamicResource AccentBrush}" VerticalContentAlignment="Center" KeyDown="DiscordIdKeyDown" TextChanged="DiscordIdEdited"><TextBox.Template><ControlTemplate TargetType="TextBox"><Border CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" Padding="{TemplateBinding Padding}"><ScrollViewer x:Name="PART_ContentHost"/></Border></ControlTemplate></TextBox.Template></TextBox>
+        <Button Grid.Column="1" Content="{DynamicResource UiApply}" Style="{StaticResource SmallButton}" Margin="7,0,0,0" Click="DiscordApplyClick"/>
+       </Grid>
+       <TextBlock x:Name="DiscordStatusLabel" TextWrapping="Wrap" Foreground="{DynamicResource SettingsMuted}" FontSize="11" Margin="0,9,0,0"/>
+       <TextBlock x:Name="DiscordPreview" TextWrapping="Wrap" Foreground="{DynamicResource SettingsSecondary}" FontSize="11" Margin="0,5,0,0"/>
+       <Button Content="Discord Developer Portal ↗" Style="{StaticResource SmallButton}" Padding="0,6,0,0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" FontSize="10" Click="OpenDiscordPortal" Margin="0,4,0,0"/>
       </StackPanel>
      </Border>
      <TextBlock Text="{DynamicResource UiStyles}" Foreground="{DynamicResource SettingsMuted}" FontSize="10" Margin="6,0,0,8"/>

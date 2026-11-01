@@ -81,6 +81,8 @@ internal static class Program
         window.Close();
         app.Shutdown();
         Console.WriteLine("All 27 checks passed.");
+        TimelineChecks.Run();
+        Task.Run(DiscordChecks.RunAsync).GetAwaiter().GetResult();
     }
 
     private static void Check(bool condition, string description)
