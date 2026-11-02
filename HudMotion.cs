@@ -9,7 +9,7 @@ public static class HudMotion
         var p = Math.Clamp(progress, 0, 1) - 1;
         return 1 + 2.9 * p * p * p + 1.9 * p * p;
     }
-    public static double Follow(double value, double target, double delta, double speed) => value + (target - value) * Math.Clamp(delta * speed, 0, 1);
+    public static double Follow(double value, double target, double delta, double speed) => value + (target - value) * (1 - Math.Exp(-Math.Max(0, delta) * Math.Max(0, speed)));
     public static (double Opacity, double X, double Y) Letter(double elapsedMilliseconds, int index, double fontSize, bool incoming)
     {
         var scale = fontSize / 5.5;

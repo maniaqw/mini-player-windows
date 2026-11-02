@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace GlassPlayer;
 
@@ -14,7 +15,18 @@ internal sealed class LiquidBackdrop : IDisposable
     private readonly MainWindow player;
     private (int X, int Y, int W, int H, int Radius, bool Light)? lastBounds;
     public bool IsAvailable { get; private set; }
+    private bool updateQueued, disposed;
     public LiquidBackdrop(MainWindow player) { this.player = player; }
+    public void RequestUpdate()
+    {
+        if (disposed || updateQueued) return;
+        updateQueued = true;
+        player.Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
+        {
+            updateQueued = false;
+            if (!disposed) Update();
+        });
+    }
 
     public void Update(bool force = false)
     {
@@ -55,11 +67,18 @@ internal sealed class LiquidBackdrop : IDisposable
         {
             if (!IsAvailable) { ShowWindow(surface.Handle, 0); return; }
         }
-        composition?.Resize(width, height, radius);
+        bool sizeChanged = lastBounds is null || lastBounds.Value.W != width || lastBounds.Value.H != height || lastBounds.Value.Radius != radius;
+        if (sizeChanged) composition?.Resize(width, height, radius);
         // Insert directly below the player; this follows its topmost band without activation.
-        SetWindowPos(surface.Handle, owner, next.Item1, next.Item2, width, height, 0x0010 | 0x0040 | 0x0200);
-        var region = CreateRoundRectRgn(0, 0, width + 1, height + 1, radius * 2, radius * 2);
-        if (SetWindowRgn(surface.Handle, region, true) == 0) DeleteObject(region);
+        uint flags = 0x0010 | 0x0040 | 0x0200;
+        if (!sizeChanged) flags |= 0x0001;
+        if (!force && lastBounds is not null) flags |= 0x0004;
+        SetWindowPos(surface.Handle, owner, next.Item1, next.Item2, width, height, flags);
+        if (sizeChanged)
+        {
+            var region = CreateRoundRectRgn(0, 0, width + 1, height + 1, radius * 2, radius * 2);
+            if (SetWindowRgn(surface.Handle, region, true) == 0) DeleteObject(region);
+        }
         lastBounds = next;
     }
     private static bool ApplyMaterial(IntPtr window, bool light)
@@ -99,7 +118,7 @@ internal sealed class LiquidBackdrop : IDisposable
         }
         public void Dispose() => DestroyHandle();
     }
-    public void Dispose() { composition?.Dispose(); composition = null; surface?.Dispose(); surface = null; IsAvailable = false; }
+    public void Dispose() { disposed = true; composition?.Dispose(); composition = null; surface?.Dispose(); surface = null; IsAvailable = false; }
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct Accent { public int State, Flags; public uint Color; public int Animation; }
     [StructLayout(LayoutKind.Sequential)] private struct CompositionData { public int Attribute; public IntPtr Data; public int Size; }

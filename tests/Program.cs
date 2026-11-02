@@ -82,6 +82,7 @@ internal static class Program
         app.Shutdown();
         Console.WriteLine("All 27 checks passed.");
         TimelineChecks.Run();
+        MotionChecks.Run();
         Task.Run(DiscordChecks.RunAsync).GetAwaiter().GetResult();
     }
 

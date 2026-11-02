@@ -1,6 +1,9 @@
 # Glass Player
 
 A floating Windows music player with synced lyrics, customizable themes, a mini player, and Discord presence.
+
+See [CHANGELOG.md](CHANGELOG.md) for patch notes.
+
 <img width="459" height="99" alt="изображение" src="https://github.com/user-attachments/assets/386ee512-43d2-4cee-ba47-5e7112bfede2" />
 <img width="467" height="86" alt="изображение" src="https://github.com/user-attachments/assets/fd042332-674f-49b5-a23d-bbc80fe085c7" />
 <img width="502" height="877" alt="изображение" src="https://github.com/user-attachments/assets/8bf9ec86-3885-4306-bf06-0fefdae1cb7b" />

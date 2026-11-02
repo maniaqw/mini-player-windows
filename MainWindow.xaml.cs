@@ -26,14 +26,18 @@ public partial class MainWindow : Window
     private string lyricsStatus = "Ожидание трека";
     private bool updating, closing, playing;
     private bool previousEnabled, nextEnabled;
-    private double duration, positionBase, positionClock, rate = 1, lastFrame, lyricOffsetSeconds;
+    private double duration, positionBase, positionClock, rate = 1, lyricOffsetSeconds;
     private double discVelocity, coverChangedAt = -1, targetWidth;
     private double expansion, timelineStartSeconds;
     private bool hasTimelinePosition;
     private readonly MediaTimeline mediaTimeline = new();
     private bool expandUp, seekDragging;
     private string seekTrackKey = "";
+    private readonly ArcSegment ringArc = new() { Size = new System.Windows.Size(25.5, 25.5), SweepDirection = SweepDirection.Clockwise, IsStroked = true };
+    private readonly PathGeometry ringGeometry = new();
+    private readonly EllipseGeometry fullRing = new(new Point(28.5, 28.5), 25.5, 25.5);
     private readonly Stopwatch clock = Stopwatch.StartNew();
+    private readonly RenderFrameClock renderClock = new();
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private readonly LyricsService lyricsService = new();
     private CancellationTokenSource? lyricsCancellation;
@@ -60,6 +64,10 @@ public partial class MainWindow : Window
     {
         demo = demo || previewOnly;
         InitializeComponent();
+        var ringFigure = new PathFigure { StartPoint = new Point(28.5, 3), IsClosed = false, IsFilled = false };
+        ringFigure.Segments.Add(ringArc);
+        ringGeometry.Figures.Add(ringFigure);
+        fullRing.Freeze();
         Left = SystemParameters.WorkArea.Right - Width - 30;
         Top = SystemParameters.WorkArea.Bottom - Height - 30;
         try
@@ -93,8 +101,8 @@ public partial class MainWindow : Window
         ClampPosition();
         SizeChanged += (_, _) => UpdateCanvas();
         SourceInitialized += (_, _) => { liquidBackdrop = new LiquidBackdrop(this); Dispatcher.BeginInvoke(() => liquidBackdrop.Update()); };
-        LocationChanged += (_, _) => liquidBackdrop?.Update();
-        IsVisibleChanged += (_, _) => liquidBackdrop?.Update();
+        LocationChanged += (_, _) => liquidBackdrop?.RequestUpdate();
+        IsVisibleChanged += (_, _) => { renderClock.Reset(); liquidBackdrop?.Update(); };
         StateChanged += (_, _) => liquidBackdrop?.Update();
         Activated += (_, _) => liquidBackdrop?.Update(true);
         UpdateCanvas();
@@ -293,10 +301,8 @@ public partial class MainWindow : Window
     private void RenderFrame(object? sender, EventArgs e)
     {
         if (closing || !IsVisible) return;
+        if (e is not RenderingEventArgs rendering || !renderClock.Advance(rendering.RenderingTime, out var elapsed)) return;
         double now = clock.Elapsed.TotalSeconds;
-        if (now - lastFrame < 1.0 / 60) return;
-        var elapsed = Math.Min(now - lastFrame, 0.1);
-        lastFrame = now;
         GlassShader.Time = now;
         discVelocity = HudMotion.Follow(discVelocity, playing ? 55 : 0, elapsed, playing ? 2.2 : 3.5);
         if (!playing && discVelocity < 0.01) discVelocity = 0;
@@ -339,18 +345,13 @@ public partial class MainWindow : Window
 
     private void DrawRing(double fraction)
     {
-        fraction = Math.Clamp(fraction, 0, 1);
+        fraction = double.IsFinite(fraction) ? Math.Clamp(fraction, 0, 1) : 0;
         if (fraction <= 0) { ProgressRing.Data = null; return; }
-        if (fraction >= 0.99999) { ProgressRing.Data = new EllipseGeometry(new Point(28.5, 28.5), 25.5, 25.5); return; }
+        if (fraction >= 0.99999) { ProgressRing.Data = fullRing; return; }
         double angle = fraction * Math.PI * 2;
-        var geometry = new StreamGeometry();
-        using (var context = geometry.Open())
-        {
-            context.BeginFigure(new Point(28.5, 3), false, false);
-            context.ArcTo(new Point(28.5 + Math.Sin(angle) * 25.5, 28.5 - Math.Cos(angle) * 25.5), new System.Windows.Size(25.5, 25.5), 0, fraction > 0.5, SweepDirection.Clockwise, true, false);
-        }
-        geometry.Freeze();
-        ProgressRing.Data = geometry;
+        ringArc.Point = new Point(28.5 + Math.Sin(angle) * 25.5, 28.5 - Math.Cos(angle) * 25.5);
+        ringArc.IsLargeArc = fraction > 0.5;
+        ProgressRing.Data = ringGeometry;
     }
 
     private void ShowLine(string text, bool isLyric = false)
@@ -374,7 +375,7 @@ public partial class MainWindow : Window
         if (Math.Abs(targetWidth - Width) < 0.01) return;
         var center = Left + Width / 2;
         var next = HudMotion.Follow(Width, targetWidth, elapsed, 7);
-        if (Math.Abs(targetWidth - next) < 0.8 * PlayerScale) next = targetWidth;
+        if (Math.Abs(targetWidth - next) < 0.15 * PlayerScale) next = targetWidth;
         var screen = ScreenArea();
         Width = next;
         Left = Math.Clamp(center - next / 2, screen.Left, Math.Max(screen.Left, screen.Right - next));
@@ -406,7 +407,7 @@ public partial class MainWindow : Window
         bool hover = (IsMouseOver || seekDragging) && (session is not null || demo);
         if (hover && expansion == 0) expandUp = Top + (144 + 96) * PlayerScale > ScreenArea().Bottom;
         double next = HudMotion.Follow(expansion, hover ? 1 : 0, elapsed, 12);
-        if (Math.Abs(next - (hover ? 1 : 0)) < 0.005) next = hover ? 1 : 0;
+        if (Math.Abs(next - (hover ? 1 : 0)) < 0.001) next = hover ? 1 : 0;
         if (next == expansion) return;
         double oldHeight = Height;
         expansion = next;
@@ -591,7 +592,7 @@ public partial class MainWindow : Window
         PlayerCanvas.Width = Math.Max(1, ActualWidth / PlayerScale);
         PlayerCanvas.Height = Math.Max(144, ActualHeight / PlayerScale);
         GlassShader.Size = new Point(PlayerCanvas.Width, PlayerCanvas.Height);
-        liquidBackdrop?.Update();
+        liquidBackdrop?.RequestUpdate();
     }
 
     private void ApplyTheme()

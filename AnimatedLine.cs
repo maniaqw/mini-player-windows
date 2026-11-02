@@ -17,6 +17,9 @@ public sealed class AnimatedLine : Control
     private double changedAt, hoverAt;
     private bool dirty = true;
     private Run? currentRun, previousRun;
+    private FormattedText? clippedRun;
+    private double clippedWidth = -1;
+    private bool contentChanged;
     private double PixelsPerDip => VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
     public AnimatedLine()
@@ -31,13 +34,14 @@ public sealed class AnimatedLine : Control
         line.previous = (string?)e.OldValue ?? "";
         line.changedAt = Clock.Elapsed.TotalSeconds;
         line.dirty = true;
+        line.contentChanged = true;
         line.hoverAt = line.changedAt;
     }
     protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
     {
         base.OnPropertyChanged(e);
         if (e.Property == ForegroundProperty || e.Property == FontSizeProperty || e.Property == FontWeightProperty || e.Property == FontFamilyProperty)
-        { dirty = true; InvalidateVisual(); }
+        { dirty = true; contentChanged = false; InvalidateVisual(); }
     }
     private FormattedText Format(string text) => new(text, CultureInfo.CurrentUICulture, FlowDirection, new Typeface(FontFamily, FontStyle, FontWeight, FontStretch), FontSize, Foreground, PixelsPerDip);
     private Run Layout(string text)
@@ -56,13 +60,16 @@ public sealed class AnimatedLine : Control
     private void EnsureLayout()
     {
         if (!dirty) return;
+        previousRun = contentChanged && currentRun?.Full.Text == previous ? currentRun : Layout(previous);
         currentRun = Layout(Text ?? "");
-        previousRun = Layout(previous);
+        clippedRun = null;
+        clippedWidth = -1;
+        contentChanged = false;
         dirty = false;
     }
     public void Advance()
     {
-        if (Clock.Elapsed.TotalSeconds - changedAt < Math.Max(0.3 + (Text?.Length ?? 0) * 0.01, 0.2 + previous.Length * 0.005) + 0.08 || IsMouseOver)
+        if (Clock.Elapsed.TotalSeconds - changedAt < Math.Max(0.3 + (Text?.Length ?? 0) * 0.01, 0.2 + previous.Length * 0.005) + 0.08 || IsMouseOver && currentRun?.Full.WidthIncludingTrailingWhitespace > ActualWidth)
             InvalidateVisual();
     }
     protected override System.Windows.Size MeasureOverride(System.Windows.Size constraint)
@@ -111,11 +118,15 @@ public sealed class AnimatedLine : Control
         }
         else
         {
-            var clipped = Format(Text);
-            clipped.MaxTextWidth = ActualWidth;
-            clipped.MaxLineCount = 1;
-            clipped.Trimming = TextTrimming.CharacterEllipsis;
-            context.DrawText(clipped, new Point());
+            if (clippedRun is null || clippedWidth != ActualWidth)
+            {
+                clippedRun ??= Format(Text);
+                clippedRun.MaxTextWidth = ActualWidth;
+                clippedRun.MaxLineCount = 1;
+                clippedRun.Trimming = TextTrimming.CharacterEllipsis;
+                clippedWidth = ActualWidth;
+            }
+            context.DrawText(clippedRun, new Point());
         }
     }
     protected override AutomationPeer OnCreateAutomationPeer() => new LinePeer(this);
