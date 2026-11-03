@@ -42,7 +42,35 @@ internal static class TimelineChecks
         Check(clock.PositionAt(1) == 21 && MediaTimeline.PlaybackRate(double.PositiveInfinity) == 1, "invalid playback rates cannot poison the clock");
         clock.Reset();
         Check(!clock.HasPosition && clock.PositionAt(100) == 0, "disappearing media sessions clear timeline state");
-        Console.WriteLine("All 16 timeline checks passed.");
+        foreach (var stamp in new[] { missing, now })
+        {
+            clock.Reset();
+            double lastPosition = 0;
+            int lastLine = 0;
+            for (int frame = 0; frame <= 60 * 12; frame++)
+            {
+                double elapsed = frame / 60.0;
+                if (frame % 24 == 0)
+                    Observe("quantized", 9 + Math.Floor(elapsed), 180,
+                        stamp == missing ? missing : now.AddSeconds(elapsed), true, elapsed);
+                double current = clock.PositionAt(elapsed);
+                int line = (int)Math.Floor(current + 0.6);
+                if (current < lastPosition || line < lastLine)
+                    throw new Exception("FAIL: quantized polls rewound the clock or lyric line");
+                lastPosition = current;
+                lastLine = line;
+            }
+        }
+        Check(true, "quantized and missing-date SMTC polls never flash the previous lyric at 60 fps");
+        Observe("quantized", 3, 180, missing, true, 13);
+        Check(clock.PositionAt(13) == 3, "external backward seek is accepted");
+        clock.Seek(2.5, 13);
+        Observe("quantized", 2.5, 180, missing, true, 13);
+        Check(clock.PositionAt(13) == 2.5, "explicit small backward seek is immediate");
+        Observe("quantized", 2.5, 180, missing, false, 13.5);
+        Observe("quantized", 2, 180, missing, false, 14);
+        Check(clock.PositionAt(15) == 2, "small seek while paused remains available");
+        Console.WriteLine("All 20 timeline checks passed.");
     }
     private static void Check(bool value, string message)
     {

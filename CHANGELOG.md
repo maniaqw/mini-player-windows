@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.2 — 2026-11-03
+
+- Fixed synchronized lyrics briefly returning to the previous line when Windows republishes a rounded or delayed playback position.
+- Keep the playback clock continuous across repeated SMTC samples and correct small discrepancies by adjusting its speed gradually. Track changes and backward seeks still reset the position.
+- Apply the player's seek position to the displayed clock immediately.
+
+Validation: added frame-by-frame regression checks for quantized timestamps, missing dates, backward seeks and pause/resume.
+
 ## 2.5.1 — 2026-11-02
 
 - Fixed a redundant frame limiter that could skip compositor frames and reduce animation updates to approximately 29 FPS on a 60 Hz display.

@@ -216,16 +216,18 @@ public partial class MainWindow : Window
             ShuffleButton.Foreground = info.IsShuffleActive == true ? CurrentTheme.Accent : CurrentTheme.Secondary;
             RepeatButton.Foreground = info.AutoRepeatMode is not null and not MediaPlaybackAutoRepeatMode.None ? CurrentTheme.Accent : CurrentTheme.Secondary;
             RepeatButton.Content = info.AutoRepeatMode == MediaPlaybackAutoRepeatMode.Track ? "↻₁" : "↻";
-            playing = info.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
-            rate = MediaTimeline.PlaybackRate(info.PlaybackRate);
+            bool isPlaying = info.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+            double playbackRate = MediaTimeline.PlaybackRate(info.PlaybackRate);
             var properties = await selected.TryGetMediaPropertiesAsync();
             if (closing) return;
             var key = string.Join('\n', selected.SourceAppUserModelId, properties.Title, properties.Artist, properties.AlbumTitle);
             var timeline = selected.GetTimelineProperties();
             positionClock = clock.Elapsed.TotalSeconds;
             mediaTimeline.Update(key, timeline.StartTime, timeline.EndTime, timeline.Position, timeline.MaxSeekTime,
-                timeline.LastUpdatedTime, playing, rate, DateTimeOffset.UtcNow, positionClock);
+                timeline.LastUpdatedTime, isPlaying, playbackRate, DateTimeOffset.UtcNow, positionClock);
+            playing = isPlaying;
             duration = mediaTimeline.Duration;
+            rate = mediaTimeline.Rate;
             timelineStartSeconds = mediaTimeline.Start;
             hasTimelinePosition = mediaTimeline.HasPosition;
             positionBase = mediaTimeline.PositionAt(positionClock);
@@ -448,6 +450,8 @@ public partial class MainWindow : Window
         double position = SeekSlider.Value * duration;
         if (demo) { positionBase = position; positionClock = clock.Elapsed.TotalSeconds; return; }
         mediaTimeline.Seek(position, clock.Elapsed.TotalSeconds);
+        positionClock = clock.Elapsed.TotalSeconds;
+        positionBase = mediaTimeline.PositionAt(positionClock);
         await Control(async s => await s.TryChangePlaybackPositionAsync(TimeSpan.FromSeconds(timelineStartSeconds + position).Ticks));
     }
     private async void PreviousClick(object sender, RoutedEventArgs e) => await Control(async s => await s.TrySkipPreviousAsync());
